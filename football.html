@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>AFC Asian Football — Mini 3D Game (A-Frame)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- A-Frame core -->
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <!-- A-Frame physics system (Cannon.js based) -->
+  <script src="https://cdn.jsdelivr.net/npm/aframe-physics-system@4.0.1/dist/aframe-physics-system.min.js"></script>
+  <style>
+    body { margin: 0; font-family: Inter, Roboto, Arial, sans-serif; background: #071428; color: #fff; }
+    #ui {
+      position: absolute; left: 12px; top: 12px; z-index: 10;
+      background: linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.25));
+      padding: 10px 14px; border-radius: 8px; backdrop-filter: blur(4px);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+    }
+    #ui h1 { margin: 0 0 6px 0; font-size: 14px; letter-spacing: 0.6px; color: #e6f7ff; }
+    #ui p { margin: 4px 0; font-size: 12px; color: #cfeefc; }
+    #score { font-weight: 700; color: #ffd166; }
+    #hint { opacity: 0.9; font-size: 12px; color: #bfe7ff; margin-top: 6px; }
+    #toggleBtn { margin-top: 8px; padding: 6px 8px; border-radius: 6px; background: #0b6b9a; color: #fff; border: none; cursor: pointer; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <h1>AFC Asian Football — Demo</h1>
+    <p><span id="score">Score: 0</span> &nbsp; | &nbsp; <span id="mode">Third-person</span></p>
+    <p id="hint">WASD to move • Click or press F to kick • V to toggle view • Space to toggle dribble</p>
+    <button id="toggleBtn">Toggle View (V)</button>
+  </div>
+
+  <!-- A-Frame scene -->
+  <a-scene physics="gravity: -9.8" background="color: #87CEEB">
+    <!-- Assets (procedural materials can be added here) -->
+    <a-assets>
+      <!-- Simple procedural grass texture using canvas could be added, but we'll use colors and subtle repeats -->
+    </a-assets>
+
+    <!-- Lighting: bright daytime stadium -->
+    <a-entity light="type: ambient; intensity: 0.6; color: #ffffff"></a-entity>
+    <a-entity light="type: directional; intensity: 0.9; color: #fff" position="-10 20 10" rotation="-45 -30 0"></a-entity>
+    <a-entity light="type: directional; intensity: 0.5; color: #fff" position="10 18 -8" rotation="-50 40 0"></a-entity>
+
+    <!-- Camera rig (for first/third person switching) -->
+    <a-entity id="playerRig" position="0 1.2 8" rotation="0 180 0">
+      <!-- Third-person camera sits behind the player -->
+      <a-entity id="thirdCam" camera="active: true; fov: 70" position="0 2.2 5" look-controls-enabled="true"></a-entity>
+      <!-- First-person camera (attached to head) -->
+      <a-entity id="firstCam" camera="active: false; fov: 80" position="0 1.4 0"></a-entity>
+    </a-entity>
+
+    <!-- Stadium atmosphere: simple bleachers and banners -->
+    <a-entity id="stadium" position="0 0 0">
+      <!-- Surrounding stands (simple repeated boxes) -->
+      <a-entity id="bleachers" position="0 0 0">
+        <!-- Left stands -->
+        <a-entity position="-22 0 -5" rotation="0 10 0">
+          <a-box depth="40" height="2" width="6" color="#2b3a67"></a-box>
+          <a-box depth="40" height="1.2" width="5.6" color="#1f2a4a" position="0 1 0"></a-box>
+        </a-entity>
+        <!-- Right stands -->
+        <a-entity position="22 0 -5" rotation="0 -10 0">
+          <a-box depth="40" height="2" width="6" color="#2b3a67"></a-box>
+          <a-box depth="40" height="1.2" width="5.6" color="#1f2a4a" position="0 1 0"></a-box>
+        </a-entity>
+        <!-- Back stands -->
+        <a-entity position="0 0 -30">
+          <a-box depth="6" height="2" width="50" color="#2b3a67"></a-box>
+          <a-box depth="5.6" height="1.2" width="49" color="#1f2a4a" position="0 1 0"></a-box>
+        </a-entity>
+        <!-- Front small stands -->
+        <a-entity position="0 0 30">
+          <a-box depth="6" height="2" width="50" color="#2b3a67"></a-box>
+          <a-box depth="5.6" height="1.2" width="49" color="#1f2a4a" position="0 1 0"></a-box>
+        </a-entity>
+      </a-entity>
+
+      <!-- Banners with AFC-like colors -->
+      <a-entity position="0 6 -28">
+        <a-box width="50" height="4" depth="0.5" color="#0b6b9a"></a-box>
+        <a-text value="AFC ASIAN FOOTBALL" align="center" color="#fff" position="0 0 0.3" width="40"></a-text>
+      </a-entity>
+    </a-entity>
+
+    <!-- Pitch: green plane with white lines -->
+    <a-entity id="pitch" position="0 0 0">
+      <!-- Grass base -->
+      <a-plane rotation="-90 0 0" width="40" height="80" color="#0f7a3a" material="repeat: 8 16; roughness: 1"></a-plane>
+
+      <!-- White boundary lines (thin boxes) -->
+      <a-box position="0 0.01 0" width="40.2" height="0.02" depth="80.2" color="#ffffff" material="opacity:0.06"></a-box>
+
+      <!-- Center line -->
+      <a-box position="0 0.02 0" width="0.12" height="0.02" depth="80" color="#ffffff"></a-box>
+
+      <!-- Center circle using torus -->
+      <a-entity geometry="primitive: torus; radius: 6; radiusTubular: 0.06; segmentsRadial: 36; segmentsTubular: 8" rotation="-90 0 0" position="0 0.03 0" material="color: #ffffff"></a-entity>
+
+      <!-- Penalty areas (front end) -->
+      <!-- Near goal (positive Z) -->
+      <a-box position="0 0.02 36" width="18" height="0.02" depth="8" color="#ffffff"></a-box>
+      <a-box position="-9 0.02 32" width="0.02" height="0.02" depth="16" color="#ffffff"></a-box>
+      <a-box position="9 0.02 32" width="0.02" height="0.02" depth="16" color="#ffffff"></a-box>
+
+      <!-- Far goal (negative Z) -->
+      <a-box position="0 0.02 -36" width="18" height="0.02" depth="8" color="#ffffff"></a-box>
+      <a-box position="-9 0.02 -32" width="0.02" height="0.02" depth="16" color="#ffffff"></a-box>
+      <a-box position="9 0.02 -32" width="0.02" height="0.02" depth="16" color="#ffffff"></a-box>
+
+      <!-- Halfway markers -->
+      <a-box position="0 0.02 20" width="0.12" height="0.02" depth="0.5" color="#ffffff"></a-box>
+      <a-box position="0 0.02 -20" width="0.12" height="0.02" depth="0.5" color="#ffffff"></a-box>
+    </a-entity>
+
+    <!-- Goal (at positive Z end) -->
+    <a-entity id="goal" position="0 0 40">
+      <!-- Left post -->
+      <a-cylinder position="-3 1 0" radius="0.08" height="2.2" color="#ffffff" rotation="0 0 0"></a-cylinder>
+      <!-- Right post -->
+      <a-cylinder position="3 1 0" radius="0.08" height="2.2" color="#ffffff"></a-cylinder>
+      <!-- Crossbar -->
+      <a-cylinder position="0 2.1 0" radius="0.08" height="6.2" color="#ffffff" rotation="0 0 90"></a-cylinder>
+
+      <!-- Net (simple plane with grid-like material) -->
+      <a-plane position="0 1  -1.2" rotation="0 0 0" width="6.5" height="2.2" color="#ffffff" material="opacity:0.12"></a-plane>
+
+      <!-- Goal collision box (invisible) to detect scoring -->
+      <a-box id="goalTrigger" position="0 1 -0.6" width="6.5" height="2.2" depth="0.4" visible="false" static-body></a-box>
+    </a-entity>
+
+    <!-- Soccer ball (detailed-ish: main sphere + black patch spheres to mimic pattern) -->
+    <a-entity id="ball" position="0 0.25 0" dynamic-body="mass:0.45; linearDamping:0.4; angularDamping:0.4">
+      <!-- Main sphere -->
+      <a-sphere radius="0.22" color="#ffffff" segments-width="32" segments-height="32"></a-sphere>
+
+      <!-- Simple black patches (small spheres glued to surface) -->
+      <!-- These are decorative and parented to the ball so they move with it -->
+      <a-sphere radius="0.06" color="#111111" position="0.12 0.06 0.06"></a-sphere>
+      <a-sphere radius="0.05" color="#111111" position="-0.12 -0.04 -0.06"></a-sphere>
+      <a-sphere radius="0.05" color="#111111" position="0 -0.08 0.12"></a-sphere>
+      <a-sphere radius="0.05" color="#111111" position="0.06 0.08 -0.12"></a-sphere>
+      <!-- Add a subtle shadow -->
+      <a-ring position="0 0.01 0" rotation="-90 0 0" radius-inner="0.25" radius-outer="0.35" color="#000" material="opacity:0.12"></a-ring>
+    </a-entity>
+
+    <!-- Simple player model (basic human-like) -->
+    <a-entity id="player" position="0 0 8" rotation="0 180 0" kinematic-body>
+      <!-- Torso -->
+      <a-cylinder id="torso" position="0 1.0 0" radius="0.25" height="0.9" color="#0b6b9a"></a-cylinder>
+      <!-- Head -->
+      <a-sphere id="head" position="0 1.8 0" radius="0.22" color="#f1c27d"></a-sphere>
+      <!-- Left leg -->
+      <a-cylinder position="-0.12 0.45 0" radius="0.08" height="0.9" color="#0b6b9a"></a-cylinder>
+      <!-- Right leg -->
+      <a-cylinder position="0.12 0.45 0" radius="0.08" height="0.9" color="#0b6b9a"></a-cylinder>
+      <!-- Left arm -->
+      <a-cylinder position="-0.45 1.2 0" radius="0.06" height="0.7" rotation="0 0 20" color="#0b6b9a"></a-cylinder>
+      <!-- Right arm -->
+      <a-cylinder position="0.45 1.2 0" radius="0.06" height="0.7" rotation="0 0 -20" color="#0b6b9a"></a-cylinder>
+    </a-entity>
+
+    <!-- Ground collider so ball and player don't fall through -->
+    <a-plane rotation="-90 0 0" width="200" height="200" position="0 -0.01 0" visible="false" static-body></a-plane>
+
+    <!-- Skybox subtle gradient -->
+    <a-sky color="#87CEEB"></a-sky>
+
+    <!-- Score text in the world (optional) -->
+    <a-entity id="worldScore" position="-18 6 10">
+      <a-text value="SCORE: 0" color="#ffd166" width="8" align="left"></a-text>
+    </a-entity>
+
+    <!-- Scripts: components and game logic -->
+    <script>
+      // Wait for scene to load
+      AFRAME.registerComponent('player-controller', {
+        schema: {},
+        init: function () {
+          // References
+          this.rig = document.getElementById('playerRig');
+          this.player = document.getElementById('player');
+          this.ball = document.getElementById('ball');
+          this.thirdCam = document.getElementById('thirdCam');
+          this.firstCam = document.getElementById('firstCam');
+          this.scoreEl = document.getElementById('score');
+          this.modeEl = document.getElementById('mode');
+          this.worldScore = document.querySelector('#worldScore a-text');
+
+          // Movement state
+          this.velocity = new THREE.Vector3();
+          this.speed = 5.2; // meters per second
+          this.keys = { w: false, a: false, s: false, d: false };
+          this.isDribbling = false;
+          this.isFirstPerson = false;
+          this.score = 0;
+
+          // Kick parameters
+          this.kickPower = 12; // impulse magnitude
+          this.lastKickTime = 0;
+          this.kickCooldown = 400; // ms
+
+          // Bind handlers
+          this.onKeyDown = this.onKeyDown.bind(this);
+          this.onKeyUp = this.onKeyUp.bind(this);
+          this.onClick = this.onClick.bind(this);
+          this.toggleView = this.toggleView.bind(this);
+          this.toggleDribble = this.toggleDribble.bind(this);
+
+          // Add listeners
+          window.addEventListener('keydown', this.onKeyDown);
+          window.addEventListener('keyup', this.onKeyUp);
+          window.addEventListener('click', this.onClick);
+          document.getElementById('toggleBtn').addEventListener('click', this.toggleView);
+
+          // UI toggle via V
+          window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'v') this.toggleView();
+            if (e.code === 'Space') this.toggleDribble();
+          });
+
+          // Basic collision detection interval for scoring
+          this.goalTrigger = document.getElementById('goalTrigger');
+          this.goalTrigger.addEventListener('collide', (evt) => {
+            // If ball collides with goal trigger, increment score
+            if (evt.detail.body.el && evt.detail.body.el.id === 'ball') {
+              this.onScore();
+            }
+          });
+
+          // For physics interactions we will use the physics body API
+          // Ensure ball has dynamic-body (set in markup)
+        },
+
+        onScore: function () {
+          // Increase score and update UI
+          this.score += 1;
+          this.scoreEl.innerText = 'Score: ' + this.score;
+          this.worldScore.setAttribute('value', 'SCORE: ' + this.score);
+
+          // Simple celebration: push ball back to center and reset velocity
+          const ballBody = this.ball.body;
+          if (ballBody) {
+            ballBody.position.set(0, 0.25, 0);
+            ballBody.velocity.set(0, 0, 0);
+            ballBody.angularVelocity.set(0, 0, 0);
+            // Also nudge player back a bit
+            this.player.setAttribute('position', { x: 0, y: 0, z: 8 });
+            this.rig.setAttribute('position', { x: 0, y: 1.2, z: 8 });
+          }
+        },
+
+        onKeyDown: function (evt) {
+          const k = evt.key.toLowerCase();
+          if (k === 'w' || k === 'a' || k === 's' || k === 'd') {
+            this.keys[k] = true;
+          }
+          if (k === 'f') {
+            this.kick();
+          }
+        },
+
+        onKeyUp: function (evt) {
+          const k = evt.key.toLowerCase();
+          if (k === 'w' || k === 'a' || k === 's' || k === 'd') {
+            this.keys[k] = false;
+          }
+        },
+
+        onClick: function (evt) {
+          // Click to kick
+          this.kick();
+        },
+
+        toggleView: function () {
+          this.isFirstPerson = !this.isFirstPerson;
+          this.firstCam.setAttribute('camera', 'active', this.isFirstPerson);
+          this.thirdCam.setAttribute('camera', 'active', !this.isFirstPerson);
+          document.getElementById('mode').innerText = this.isFirstPerson ? 'First-person' : 'Third-person';
+        },
+
+        toggleDribble: function () {
+          this.isDribbling = !this.isDribbling;
+          const hint = document.getElementById('hint');
+          hint.innerText = this.isDribbling ? 'Dribble ON • Move near the ball to attach' : 'Dribble OFF • Click or press F to kick';
+        },
+
+        kick: function () {
+          const now = Date.now();
+          if (now - this.lastKickTime < this.kickCooldown) return; // cooldown
+          this.lastKickTime = now;
+
+          // Compute direction from player to goal (goal at z=40)
+          const playerPos = new THREE.Vector3();
+          this.player.object3D.getWorldPosition(playerPos);
+
+          const goalPos = new THREE.Vector3(0, 1, 40);
+          const dir = new THREE.Vector3().subVectors(goalPos, playerPos).normalize();
+
+          // If player is near the ball, apply impulse toward goal
+          const ballBody = this.ball.body;
+          if (!ballBody) return;
+
+          const ballPos = new THREE.Vector3().set(ballBody.position.x, ballBody.position.y, ballBody.position.z);
+          const dist = playerPos.distanceTo(ballPos);
+
+          // If close enough, apply a stronger kick; otherwise, a weaker long-range kick
+          const closeThreshold = 1.2;
+          const power = dist < closeThreshold ? this.kickPower : this.kickPower * 0.9;
+
+          // Apply impulse at ball center
+          const impulse = new CANNON.Vec3(dir.x * power, Math.max(0.6, dir.y * power * 0.2), dir.z * power);
+          ballBody.applyImpulse(impulse, ballBody.position);
+
+          // If dribbling, disable dribble after kick
+          if (this.isDribbling) this.isDribbling = false;
+        },
+
+        tick: function (time, delta) {
+          // delta in ms
+          const dt = delta / 1000;
+          // Compute movement vector from keys
+          const forward = (this.keys.w ? 1 : 0) - (this.keys.s ? 1 : 0);
+          const strafe = (this.keys.d ? 1 : 0) - (this.keys.a ? 1 : 0);
+
+          // Determine camera yaw to move relative to view (third-person camera rotation)
+          const rigRotation = this.rig.getAttribute('rotation');
+          const yaw = THREE.Math.degToRad(rigRotation.y);
+
+          // Movement in world coordinates
+          const moveX = (Math.sin(yaw) * forward + Math.cos(yaw) * strafe) * this.speed * dt;
+          const moveZ = (Math.cos(yaw) * forward - Math.sin(yaw) * strafe) * this.speed * dt;
+
+          // Update player and rig positions
+          const playerPos = this.player.getAttribute('position');
+          const newX = playerPos.x + moveX;
+          const newZ = playerPos.z + moveZ;
+
+          // Keep player within pitch bounds (approx)
+          const limitX = 18;
+          const limitZ = 38;
+          this.player.setAttribute('position', { x: THREE.Math.clamp(newX, -limitX, limitX), y: 0, z: THREE.Math.clamp(newZ, -limitZ, limitZ) });
+          // Move rig to follow player (camera)
+          this.rig.setAttribute('position', { x: THREE.Math.clamp(newX, -limitX, limitX), y: 1.2, z: THREE.Math.clamp(newZ + 0.2, -limitZ, limitZ) });
+
+          // Rotate player to face movement direction if moving
+          if (forward !== 0 || strafe !== 0) {
+            const angle = Math.atan2(moveX, moveZ) * (180 / Math.PI);
+            this.player.setAttribute('rotation', { x: 0, y: angle, z: 0 });
+            this.rig.setAttribute('rotation', { x: 0, y: angle, z: 0 });
+          }
+
+          // Dribbling behavior: if enabled and player is near ball, make ball follow player
+          const ballBody = this.ball.body;
+          if (ballBody) {
+            const ballPos = new THREE.Vector3(ballBody.position.x, ballBody.position.y, ballBody.position.z);
+            const playerWorldPos = new THREE.Vector3();
+            this.player.object3D.getWorldPosition(playerWorldPos);
+
+            const dist = playerWorldPos.distanceTo(ballPos);
+            const attachDistance = 1.0;
+
+            if (this.isDribbling && dist < attachDistance) {
+              // Compute a target position slightly in front of the player
+              const forwardVec = new THREE.Vector3(0, 0, -1).applyEuler(this.player.object3D.rotation);
+              const target = playerWorldPos.clone().add(forwardVec.multiplyScalar(0.9));
+              target.y = 0.25;
+
+              // Smoothly move ball toward target by setting velocity
+              const toTarget = new THREE.Vector3().subVectors(target, ballPos);
+              const followSpeed = 8.0;
+              const desiredVel = toTarget.multiplyScalar(followSpeed);
+              // Apply velocity directly to the physics body
+              ballBody.velocity.set(desiredVel.x, desiredVel.y, desiredVel.z);
+              // Reduce angular velocity for stable dribble
+              ballBody.angularVelocity.set(0, 0, 0);
+            } else {
+              // If not dribbling, implement simple collision push: if player intersects ball, nudge it
+              if (dist < 0.9) {
+                // push direction from player to ball
+                const pushDir = new THREE.Vector3().subVectors(ballPos, playerWorldPos).normalize();
+                const pushStrength = 2.0;
+                const impulse = new CANNON.Vec3(pushDir.x * pushStrength, 0.6, pushDir.z * pushStrength);
+                ballBody.applyImpulse(impulse, ballBody.position);
+              }
+            }
+
+            // Keep ball above ground if it sinks slightly
+            if (ballBody.position.y < 0.22) {
+              ballBody.position.y = 0.25;
+              ballBody.velocity.y = Math.max(0, ballBody.velocity.y);
+            }
+          }
+        },
+
+        remove: function () {
+          // Clean up listeners
+          window.removeEventListener('keydown', this.onKeyDown);
+          window.removeEventListener('keyup', this.onKeyUp);
+          window.removeEventListener('click', this.onClick);
+        }
+      });
+
+      // Attach the player-controller to the scene so it runs
+      document.querySelector('a-scene').addEventListener('loaded', function () {
+        const sceneEl = document.querySelector('a-scene');
+        sceneEl.setAttribute('player-controller', '');
+      });
+
+      // Small helper: show pointer cursor for clicking
+      document.addEventListener('DOMContentLoaded', function () {
+        const scene = document.querySelector('a-scene');
+        scene.style.cursor = 'crosshair';
+      });
+
+      // Notes:
+      // - The physics system used is aframe-physics-system (Cannon.js). The ball uses dynamic-body; the player uses kinematic-body.
+      // - Kinematic body is simulated by moving the entity directly; collisions are approximated by distance checks and impulses.
+      // - For a production-quality game, you'd integrate full kinematic->dynamic interactions, better animations, and optimized textures.
+      // - Tweak speed, kickPower, and dribble settings above to tune gameplay feel.
+    </script>
+  </a-scene>
+</body>
+</html>
